@@ -1,0 +1,209 @@
+---
+// src/pages/explorador.astro — football-data.org v4
+const KEY  = import.meta.env.FOOTBALL_API_KEY;
+const BASE = 'https://api.football-data.org/v4';
+const hdrs = { 'X-Auth-Token': KEY };
+
+const today    = new Date().toISOString().slice(0, 10);
+const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+const yesterday= new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+const ENDPOINTS = [
+  // ── Partidos ──
+  // ⚠️ Plan TIER_ONE: /matches global no filtra por competitions=
+  // Usar /competitions/{CODE}/matches por cada liga
+  { group: '⚽ Partidos', label: '✅ Champions hoy',          path: `/competitions/CL/matches?dateFrom=${today}&dateTo=${today}` },
+  { group: '⚽ Partidos', label: '✅ LaLiga hoy',             path: `/competitions/PD/matches?dateFrom=${today}&dateTo=${today}` },
+  { group: '⚽ Partidos', label: '✅ Premier hoy',            path: `/competitions/PL/matches?dateFrom=${today}&dateTo=${today}` },
+  { group: '⚽ Partidos', label: '✅ Bundesliga hoy',         path: `/competitions/BL1/matches?dateFrom=${today}&dateTo=${today}` },
+  { group: '⚽ Partidos', label: '✅ Champions mañana',       path: `/competitions/CL/matches?dateFrom=${tomorrow}&dateTo=${tomorrow}` },
+  { group: '⚽ Partidos', label: '✅ Premier mañana',         path: `/competitions/PL/matches?dateFrom=${tomorrow}&dateTo=${tomorrow}` },
+  { group: '⚽ Partidos', label: '❌ Global hoy (no funciona en free)', path: `/matches?dateFrom=${today}&dateTo=${today}` },
+  // ── Clasificaciones ──
+  { group: '📊 Standings', label: 'LaLiga (PD)',             path: '/competitions/PD/standings' },
+  { group: '📊 Standings', label: 'Premier League (PL)',     path: '/competitions/PL/standings' },
+  { group: '📊 Standings', label: 'Bundesliga (BL1)',        path: '/competitions/BL1/standings' },
+  { group: '📊 Standings', label: 'Serie A (SA)',            path: '/competitions/SA/standings' },
+  { group: '📊 Standings', label: 'Ligue 1 (FL1)',           path: '/competitions/FL1/standings' },
+  { group: '📊 Standings', label: 'Champions League (CL)',   path: '/competitions/CL/standings' },
+  // ── Competiciones ──
+  { group: '🏆 Competiciones', label: 'Todas disponibles',   path: '/competitions' },
+  { group: '🏆 Competiciones', label: 'Detalle LaLiga',       path: '/competitions/PD' },
+  { group: '🏆 Competiciones', label: 'Detalle Champions',    path: '/competitions/CL' },
+  { group: '🏆 Competiciones', label: 'Goleadores LaLiga',    path: '/competitions/PD/scorers?limit=10' },
+  { group: '🏆 Competiciones', label: 'Goleadores CL',        path: '/competitions/CL/scorers?limit=10' },
+  { group: '🏆 Competiciones', label: 'Equipos LaLiga',       path: '/competitions/PD/teams' },
+  { group: '🏆 Competiciones', label: 'Partidos CL',          path: '/competitions/CL/matches' },
+  // ── Equipos ──
+  { group: '🏟 Equipos', label: 'Real Madrid (86)',           path: '/teams/86' },
+  { group: '🏟 Equipos', label: 'Barcelona (81)',             path: '/teams/81' },
+  { group: '🏟 Equipos', label: 'Manchester City (65)',       path: '/teams/65' },
+  { group: '🏟 Equipos', label: 'Partidos R.Madrid',          path: '/teams/86/matches?limit=10' },
+  // ── Jugadores ──
+  { group: '👤 Jugadores', label: 'Mbappé (44)',               path: '/persons/44' },
+  { group: '👤 Jugadores', label: 'Vinicius Jr (1246)',         path: '/persons/1246' },
+];
+
+const groups = ENDPOINTS.reduce((acc, ep) => {
+  (acc[ep.group] ??= []).push(ep);
+  return acc;
+}, {});
+
+const reqPath  = Astro.url.searchParams.get('path') ?? '';
+let apiResult  = null;
+let apiError   = null;
+let apiStatus  = null;
+let callTime   = null;
+
+if (reqPath) {
+  const t0 = Date.now();
+  try {
+    const r = await fetch(`${BASE}${reqPath}`, { headers: hdrs });
+    apiStatus = r.status;
+    apiResult = await r.json();
+    callTime = Date.now() - t0;
+  } catch(e) {
+    apiError = e.message;
+    callTime = Date.now() - t0;
+  }
+}
+
+function getHints(obj) {
+  if (!obj || typeof obj !== 'object') return [];
+  return Object.keys(obj).map(k => {
+    const val = obj[k];
+    const type = Array.isArray(val) ? `array[${val.length}]` : typeof val;
+    return `${k} → ${type}`;
+  });
+}
+const hints = apiResult ? getHints(apiResult) : [];
+---
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🔬 Explorador API — FutbolLive</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0f1a; color: #e5e7eb; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+    .header { background: #111827; border-bottom: 1px solid #1f2937; padding: 16px 24px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; z-index: 10; }
+    .header h1 { font-size: 18px; font-weight: 700; color: #fff; }
+    .header p  { font-size: 12px; color: #6b7280; }
+    .badge { background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .layout { display: grid; grid-template-columns: 280px 1fr; height: calc(100vh - 61px); }
+    .sidebar { background: #0f172a; border-right: 1px solid #1f2937; overflow-y: auto; padding: 16px 0; }
+    .group-label { padding: 8px 16px 4px; font-size: 11px; font-weight: 700; color: #4b5563; text-transform: uppercase; letter-spacing: 0.08em; }
+    .ep-btn { display: block; width: 100%; text-align: left; padding: 8px 16px; font-size: 12px; color: #9ca3af; background: none; border: none; cursor: pointer; transition: all 0.15s; text-decoration: none; border-left: 2px solid transparent; }
+    .ep-btn:hover { color: #fff; background: #1f2937; }
+    .ep-btn.active { color: #22c55e; border-left-color: #22c55e; background: #1f2937; }
+    .result-panel { display: flex; flex-direction: column; overflow: hidden; }
+    .url-bar { display: flex; align-items: center; gap: 8px; padding: 12px 20px; background: #111827; border-bottom: 1px solid #1f2937; }
+    .method-badge { background: #22c55e20; color: #22c55e; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 6px; border: 1px solid #22c55e40; white-space: nowrap; }
+    .url-input { flex: 1; background: #1f2937; border: 1px solid #374151; border-radius: 8px; padding: 8px 14px; color: #e5e7eb; font-family: monospace; font-size: 12px; outline: none; }
+    .url-input:focus { border-color: #22c55e; }
+    .send-btn { background: #22c55e; color: #000; font-weight: 700; font-size: 13px; padding: 8px 20px; border: none; border-radius: 8px; cursor: pointer; }
+    .send-btn:hover { background: #16a34a; }
+    .meta-bar { display: flex; align-items: center; gap: 12px; padding: 8px 20px; background: #0f172a; border-bottom: 1px solid #1f2937; font-size: 12px; flex-wrap: wrap; }
+    .meta-item { color: #6b7280; }
+    .meta-item span { color: #e5e7eb; font-weight: 600; }
+    .ok { color: #22c55e; font-weight: 700; }
+    .err { color: #ef4444; font-weight: 700; }
+    .hints-bar { padding: 10px 20px; background: #0d1424; border-bottom: 1px solid #1f2937; display: flex; flex-wrap: wrap; gap: 6px; }
+    .hint-chip { background: #1f2937; border: 1px solid #374151; color: #9ca3af; font-size: 11px; font-family: monospace; padding: 2px 8px; border-radius: 4px; }
+    .hints-title { font-size: 11px; color: #4b5563; font-weight: 600; align-self: center; white-space: nowrap; }
+    .json-container { flex: 1; overflow-y: auto; padding: 20px; }
+    pre { font-family: monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; color: #d1d5db; }
+    .json-key { color: #93c5fd; }
+    .json-str { color: #86efac; }
+    .json-num { color: #fbbf24; }
+    .json-bool { color: #f87171; }
+    .json-null { color: #9ca3af; }
+    .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #374151; }
+    .empty-state .icon { font-size: 48px; }
+    .empty-state h2 { font-size: 18px; color: #4b5563; }
+    .empty-state p { font-size: 13px; text-align: center; max-width: 300px; }
+    .error-box { margin: 20px; background: #1f0a0a; border: 1px solid #dc2626; border-radius: 12px; padding: 20px; color: #f87171; font-family: monospace; }
+    ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>🔬 Explorador — football-data.org v4</h1>
+      <p>Testa cualquier endpoint en tiempo real · <strong style="color:#22c55e">Sin límite diario ✅</strong></p>
+    </div>
+    <span class="badge">DEV</span>
+  </div>
+
+  <div class="layout">
+    <aside class="sidebar">
+      {Object.entries(groups).map(([group, eps]) => (
+        <>
+          <div class="group-label">{group}</div>
+          {eps.map(ep => (
+            <a href={`/explorador?path=${encodeURIComponent(ep.path)}`}
+               class={`ep-btn${reqPath === ep.path ? ' active' : ''}`}>
+              {ep.label}
+            </a>
+          ))}
+        </>
+      ))}
+    </aside>
+
+    <div class="result-panel">
+      <div class="url-bar">
+        <span class="method-badge">GET</span>
+        <form method="get" action="/explorador" style="display:contents">
+          <input class="url-input" type="text" name="path" value={reqPath}
+            placeholder="/matches?dateFrom=2025-03-01&dateTo=2025-03-01"
+            autocomplete="off" spellcheck="false"/>
+          <button class="send-btn" type="submit">▶ Enviar</button>
+        </form>
+      </div>
+
+      {reqPath && (
+        <div class="meta-bar">
+          <div class="meta-item">URL: <span>{BASE}{reqPath}</span></div>
+          {apiStatus && <span class={apiStatus < 400 ? 'ok' : 'err'}>● HTTP {apiStatus}</span>}
+          {callTime != null && <div class="meta-item">Tiempo: <span>{callTime}ms</span></div>}
+          {apiResult?.count != null && <div class="meta-item">Resultados: <span>{apiResult.count}</span></div>}
+        </div>
+      )}
+
+      {hints.length > 0 && (
+        <div class="hints-bar">
+          <span class="hints-title">🔑 Claves:</span>
+          {hints.map(h => <span class="hint-chip">{h}</span>)}
+        </div>
+      )}
+
+      {apiError && <div class="error-box">❌ Error: {apiError}</div>}
+      {apiResult && <div class="json-container"><pre id="json-out">{JSON.stringify(apiResult, null, 2)}</pre></div>}
+      {!reqPath && (
+        <div class="empty-state">
+          <span class="icon">🔬</span>
+          <h2>Selecciona un endpoint</h2>
+          <p>Haz click en el panel izquierdo o escribe un path personalizado</p>
+        </div>
+      )}
+    </div>
+  </div>
+
+  <script>
+    const pre = document.getElementById('json-out');
+    if (pre) {
+      pre.innerHTML = pre.textContent
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+          let c = 'json-num';
+          if (/^"/.test(m)) c = /:$/.test(m) ? 'json-key' : 'json-str';
+          else if (/true|false/.test(m)) c = 'json-bool';
+          else if (/null/.test(m)) c = 'json-null';
+          return `<span class="${c}">${m}</span>`;
+        });
+    }
+  </script>
+</body>
+</html>

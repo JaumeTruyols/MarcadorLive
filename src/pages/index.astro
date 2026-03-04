@@ -1,0 +1,69 @@
+---
+import Layout from '../layouts/Layout.astro';
+import MatchesSection from '../components/MatchesSection';
+import { getMatchesByDate } from '../lib/endpoints.js';
+import { getDateOffset } from '../lib/api.js';
+
+const arr = v => Array.isArray(v) ? v : [];
+
+const [yesterday, today, tomorrow] = [getDateOffset(-1), getDateOffset(0), getDateOffset(1)];
+
+let sections = [];
+const errors  = {};
+
+async function safeFetch(label, date) {
+  try { return arr(await getMatchesByDate(date)); }
+  catch(e) { errors[label] = e?.message ?? 'Error'; return []; }
+}
+
+const [yM, tM, tmM] = await Promise.all([
+  safeFetch('ayer',   yesterday),
+  safeFetch('hoy',    today),
+  safeFetch('mañana', tomorrow),
+]);
+
+if (yM.length)  sections.push({ key:'yesterday', label:'Ayer',   emoji:'📋', matches: yM  });
+if (tM.length)  sections.push({ key:'today',     label:'Hoy',    emoji:'📅', matches: tM  });
+if (tmM.length) sections.push({ key:'tomorrow',  label:'Mañana', emoji:'🔜', matches: tmM });
+if (!sections.length) sections = [{ key:'today', label:'Hoy', emoji:'📅', matches:[] }];
+
+const hasErrors = Object.keys(errors).length > 0;
+const todayLabel = new Date().toLocaleDateString('es-ES', {
+  weekday:'long', year:'numeric', month:'long', day:'numeric', timeZone:'Europe/Madrid'
+});
+const liveCount = tM.filter(m => m.status === 'IN_PLAY' || m.status === 'PAUSED').length;
+---
+
+<Layout title="FutbolLive — Resultados">
+
+  <!-- Cabecera de página -->
+  <div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div>
+      <h1 class="text-xl font-black text-white">Resultados</h1>
+      <p class="text-gray-500 text-sm capitalize mt-0.5">{todayLabel}</p>
+    </div>
+    {liveCount > 0 && (
+      <div class="flex items-center gap-2 bg-red-500/10 border border-red-500/30 px-3 py-1.5 rounded-full animate-pulse">
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        <span class="text-red-400 text-sm font-bold">{liveCount} en vivo</span>
+      </div>
+    )}
+  </div>
+
+  <!-- Errores (si los hay) -->
+  {hasErrors && (
+    <div class="bg-orange-950/40 border border-orange-500/30 rounded-xl p-4 mb-5 text-orange-300 text-sm">
+      <p class="font-bold mb-1">⚠️ Error parcial cargando datos</p>
+      {Object.entries(errors).map(([l, msg]) => (
+        <p class="text-xs font-mono text-orange-400">[{l}] {msg}</p>
+      ))}
+    </div>
+  )}
+
+  <!-- Sección principal con React -->
+  <MatchesSection
+    sections={sections}
+    client:load
+  />
+
+</Layout>

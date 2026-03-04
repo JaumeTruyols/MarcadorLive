@@ -1,0 +1,247 @@
+---
+// src/pages/clasificacion/[code]/jornada/[day].astro
+import Layout from '../../../../layouts/Layout.astro';
+import MatchCard from '../../../../components/MatchCard';
+import { getCompetitionMatches, getStandings } from '../../../../lib/endpoints.js';
+
+const { code, day } = Astro.params;
+const dayNum = parseInt(day);
+
+let matches = [], standings = null, error = null;
+
+try {
+  [matches, standings] = await Promise.all([
+    getCompetitionMatches(code, `matchday=${dayNum}`),
+    getStandings(code).catch(() => null),
+  ]);
+} catch(e) {
+  error = e?.message ?? 'Error desconocido';
+}
+
+const competition    = standings?.competition ?? {};
+const season         = standings?.season      ?? {};
+const totalMatchdays = season?.currentMatchday ?? dayNum;
+
+// Navegación
+const prevDay = dayNum > 1             ? dayNum - 1 : null;
+const nextDay = dayNum < totalMatchdays ? dayNum + 1 : null;
+
+// Opciones para el <select> de jornada
+const maxJ = Math.max(totalMatchdays, dayNum);
+const jornadaOptions = Array.from({ length: maxJ }, (_, i) => i + 1);
+
+// ── Pre-procesar stats en el frontmatter ────────────────────────────────────
+const finished    = matches.filter(m => m.status === 'FINISHED');
+const liveMatches = matches.filter(m => m.status === 'IN_PLAY' || m.status === 'PAUSED');
+const totalGoals  = finished.reduce((sum, m) => {
+  return sum + (m.score?.fullTime?.home ?? 0) + (m.score?.fullTime?.away ?? 0);
+}, 0);
+
+const statCards = [
+  { label:'Partidos',    value: matches.length,    color:'text-white',     icon:'📅' },
+  { label:'Jugados',     value: finished.length,   color:'text-gray-300',  icon:'✅' },
+  { label:'En vivo',     value: liveMatches.length, color:'text-red-400',  icon:'🔴' },
+  { label:'Goles',       value: totalGoals,        color:'text-green-400', icon:'⚽' },
+];
+
+// Agrupar por fecha
+function dayLabel(utc) {
+  return new Date(utc).toLocaleDateString('es-ES', {
+    weekday:'long', day:'numeric', month:'long', timeZone:'Europe/Madrid',
+  });
+}
+const byDay = matches.reduce((acc, m) => {
+  const k = m.utcDate ? dayLabel(m.utcDate) : 'Sin fecha';
+  (acc[k] ??= []).push(m);
+  return acc;
+}, {});
+const dayGroups = Object.entries(byDay);
+
+// Resultados rápidos (lateral) pre-procesados para no usar lógica en template
+const resultadosRapidos = finished.map(m => ({
+  homeShort: m.homeTeam?.shortName ?? m.homeTeam?.name ?? '—',
+  homeCrest: m.homeTeam?.crest,
+  awayShort: m.awayTeam?.shortName ?? m.awayTeam?.name ?? '—',
+  awayCrest: m.awayTeam?.crest,
+  homeScore: m.score?.fullTime?.home ?? 0,
+  awayScore: m.score?.fullTime?.away ?? 0,
+  homeWon:   m.score?.winner === 'HOME_TEAM',
+  awayWon:   m.score?.winner === 'AWAY_TEAM',
+}));
+---
+
+<Layout title={`J${dayNum} ${competition?.name ?? code} · FutbolLive`}>
+
+{error ? (
+  <div class="bg-red-950/40 border border-red-500/30 rounded-2xl p-8 text-center">
+    <p class="text-red-400 font-bold">Error: {error}</p>
+  </div>
+) : (
+  <div class="space-y-6">
+
+    <!-- ════ CABECERA ════ -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        {competition?.emblem && (
+          <img src={competition.emblem} alt="" class="w-10 h-10 object-contain drop-shadow-lg shrink-0"/>
+        )}
+        <div>
+          <h1 class="text-xl font-black text-white">
+            {competition?.name ?? code}
+            <span class="text-green-400 ml-2">· Jornada {dayNum}</span>
+          </h1>
+          {season?.startDate && (
+            <p class="text-gray-600 text-xs mt-0.5">
+              Temporada {season.startDate.slice(0,4)}/{season.endDate?.slice(2,4)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <!-- Navegación: botones + selector -->
+      <div class="flex items-center gap-2">
+        {prevDay ? (
+          <a href={`/clasificacion/${code}/jornada/${prevDay}`}
+            class="px-3 py-2 text-sm text-gray-400 hover:text-white
+              bg-[#111827] border border-[#1a2540] hover:border-[#374151] rounded-xl transition">
+            ← J{prevDay}
+          </a>
+        ) : (
+          <span class="px-3 py-2 text-sm text-gray-700
+            bg-[#0d1526] border border-[#1a2540] rounded-xl cursor-not-allowed">
+            ←
+          </span>
+        )}
+
+        <!-- Selector de jornada (reemplaza los 38 botones) -->
+        <select
+          onchange={`window.location='/clasificacion/${code}/jornada/'+this.value`}
+          class="bg-[#111827] border border-[#1a2540] text-white text-sm
+            rounded-xl px-3 py-2 focus:outline-none focus:border-green-400/50
+            cursor-pointer hover:border-[#374151] transition">
+          {jornadaOptions.map(j => (
+            <option value={j} selected={j === dayNum}>Jornada {j}</option>
+          ))}
+        </select>
+
+        {nextDay ? (
+          <a href={`/clasificacion/${code}/jornada/${nextDay}`}
+            class="px-3 py-2 text-sm text-gray-400 hover:text-white
+              bg-[#111827] border border-[#1a2540] hover:border-[#374151] rounded-xl transition">
+            J{nextDay} →
+          </a>
+        ) : (
+          <span class="px-3 py-2 text-sm text-gray-700
+            bg-[#0d1526] border border-[#1a2540] rounded-xl cursor-not-allowed">
+            →
+          </span>
+        )}
+      </div>
+    </div>
+
+    <!-- ════ STAT CARDS ════ -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {statCards.map(s => (
+        <div class="bg-[#111827] border border-[#1a2540] rounded-xl px-4 py-3">
+          <p class="text-[10px] text-gray-600 uppercase tracking-widest mb-1">{s.icon} {s.label}</p>
+          <p class={`text-2xl font-black ${s.color}`}>{s.value}</p>
+        </div>
+      ))}
+    </div>
+
+    <!-- ════ PARTIDOS + LATERAL ════ -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Columna principal: MatchCards -->
+      <div class="lg:col-span-2 space-y-5">
+        {dayGroups.length === 0 ? (
+          <div class="bg-[#111827] border border-[#1a2540] rounded-2xl p-8 text-center">
+            <p class="text-gray-600 text-3xl mb-2">📭</p>
+            <p class="text-gray-500">No hay partidos para la jornada {dayNum}</p>
+          </div>
+        ) : (
+          dayGroups.map(([label, dayMs]) => (
+            <div>
+              <div class="flex items-center gap-3 mb-3">
+                <span class="text-xs font-bold text-gray-500 capitalize">{label}</span>
+                <div class="flex-1 h-px bg-[#1a2540]"></div>
+                <span class="text-xs text-gray-700">{dayMs.length} partido{dayMs.length !== 1 ? 's':''}</span>
+              </div>
+              <div class="space-y-2">
+                {dayMs.map(m => <MatchCard match={m} client:load />)}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      <!-- Columna lateral -->
+      <div class="space-y-4">
+
+        <!-- Resultados rápidos -->
+        {resultadosRapidos.length > 0 && (
+          <div class="bg-[#111827] border border-[#1a2540] rounded-2xl overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-[#0f1520]">
+              <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest">Resultados</h3>
+            </div>
+            <div class="divide-y divide-[#0f1520]">
+              {resultadosRapidos.map(r => (
+                <div class="flex items-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition">
+                  <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                    {r.homeCrest && (
+                      <img src={r.homeCrest} alt="" class="w-4 h-4 object-contain shrink-0"
+                        onerror="this.style.display='none'"/>
+                    )}
+                    <span class={`text-xs truncate ${r.homeWon ? 'font-bold text-white' : 'text-gray-400'}`}>
+                      {r.homeShort}
+                    </span>
+                  </div>
+                  <span class="text-sm font-black text-white shrink-0 w-10 text-center">
+                    {r.homeScore} - {r.awayScore}
+                  </span>
+                  <div class="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                    <span class={`text-xs truncate text-right ${r.awayWon ? 'font-bold text-white' : 'text-gray-400'}`}>
+                      {r.awayShort}
+                    </span>
+                    {r.awayCrest && (
+                      <img src={r.awayCrest} alt="" class="w-4 h-4 object-contain shrink-0"
+                        onerror="this.style.display='none'"/>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <!-- Links útiles -->
+        <div class="bg-[#111827] border border-[#1a2540] rounded-2xl p-4 space-y-1">
+          <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Ver también</h3>
+          <a href={`/clasificacion/${code}`}
+            class="flex items-center gap-2 text-sm text-gray-400 hover:text-green-400 transition py-1.5">
+            📊 Clasificación
+          </a>
+          <a href={`/clasificacion/${code}/goleadores`}
+            class="flex items-center gap-2 text-sm text-gray-400 hover:text-green-400 transition py-1.5">
+            ⚽ Goleadores
+          </a>
+          {prevDay && (
+            <a href={`/clasificacion/${code}/jornada/${prevDay}`}
+              class="flex items-center gap-2 text-sm text-gray-400 hover:text-green-400 transition py-1.5">
+              ← Jornada {prevDay}
+            </a>
+          )}
+          {nextDay && (
+            <a href={`/clasificacion/${code}/jornada/${nextDay}`}
+              class="flex items-center gap-2 text-sm text-gray-400 hover:text-green-400 transition py-1.5">
+              Jornada {nextDay} →
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+
+  </div>
+)}
+
+</Layout>

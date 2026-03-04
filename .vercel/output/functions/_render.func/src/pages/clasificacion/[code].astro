@@ -1,0 +1,277 @@
+---
+// src/pages/clasificacion/[code].astro
+import Layout from '../../layouts/Layout.astro';
+import { getStandings, getCompetitionMatches } from '../../lib/endpoints.js';
+
+const { code } = Astro.params;
+
+let standings   = null;
+let nextMatches = [];
+let error       = null;
+
+try {
+  const [standData, matchData] = await Promise.all([
+    getStandings(code),
+    getCompetitionMatches(code, 'status=SCHEDULED&limit=10').catch(() => []),
+  ]);
+  standings   = standData;
+  nextMatches = matchData ?? [];
+} catch(e) {
+  error = e.message;
+}
+
+const competition = standings?.competition ?? {};
+const season      = standings?.season      ?? {};
+const tables      = standings?.standings   ?? [];
+
+// ── Pre-procesar TODAS las tablas en el frontmatter ──────────────────────────
+// Regla: NINGUNA comparación con < o <= en el template HTML de Astro.
+// Aquí calculamos las clases CSS y datos derivados antes del template.
+
+function formColor(r) {
+  if (r === 'W') return 'bg-green-500';
+  if (r === 'L') return 'bg-red-500';
+  if (r === 'D') return 'bg-gray-500';
+  return 'bg-gray-700';
+}
+
+function toMadrid(utcStr) {
+  if (!utcStr) return '';
+  return new Date(utcStr).toLocaleDateString('es-ES', {
+    weekday:'short', day:'numeric', month:'short',
+    hour:'2-digit', minute:'2-digit', timeZone:'Europe/Madrid',
+  });
+}
+
+// Por cada tabla, pre-calculamos cada fila con sus clases listas para el template
+const processedTables = tables.map(t => {
+  const rows = (t.table ?? []).map((row, i) => {
+    const len  = t.table.length;
+    const form = (row.form ?? '').split(',').filter(Boolean).slice(-5);
+
+    // Zonas de clasificación (calculadas aquí, sin < en el template)
+    const zone =
+      i < 4              ? 'champions' :
+      i < 6              ? 'europa'    :
+      i < 7              ? 'conf'      :
+      i >= len - 3       ? 'descenso'  :
+                           'normal';
+
+    const zoneBorder = {
+      champions: 'border-l-2 border-l-blue-500/50',
+      europa:    'border-l-2 border-l-orange-500/50',
+      conf:      'border-l-2 border-l-green-600/50',
+      descenso:  'border-l-2 border-l-red-500/50',
+      normal:    '',
+    }[zone];
+
+    const goalDiffStr = row.goalDifference > 0
+      ? `+${row.goalDifference}`
+      : String(row.goalDifference ?? 0);
+
+    const formBubbles = form.map(r => ({ r, color: formColor(r) }));
+
+    return { ...row, zone, zoneBorder, goalDiffStr, formBubbles };
+  });
+
+  return { ...t, processedRows: rows };
+});
+
+// Próximos partidos pre-procesados
+const nextProcessed = nextMatches.slice(0, 8).map(m => ({
+  ...m,
+  dateLabel: toMadrid(m.utcDate),
+}));
+
+const hasMultipleTables = tables.length > 1;
+---
+
+<Layout title={`${competition?.name ?? code} — Clasificación · FutbolLive`}>
+
+{error ? (
+  <div class="bg-red-950/40 border border-red-500/30 rounded-xl p-6 text-center">
+    <p class="text-red-400 font-bold mb-1">Error cargando clasificación</p>
+    <p class="text-gray-500 text-sm font-mono">{error}</p>
+  </div>
+) : (
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- ════ COLUMNA PRINCIPAL: Clasificación ════ -->
+    <div class="lg:col-span-2">
+
+      <!-- Cabecera competición -->
+      <div class="flex items-center gap-3 mb-5">
+        {competition?.emblem && (
+          <img src={competition.emblem} alt="" class="w-10 h-10 object-contain"/>
+        )}
+        <div>
+          <h1 class="text-xl font-black text-white">{competition?.name ?? code}</h1>
+          {season?.startDate && (
+            <p class="text-gray-500 text-xs">
+              Temporada {season.startDate.slice(0,4)}/{season.endDate?.slice(2,4)}
+              {season?.currentMatchday && ` · Jornada ${season.currentMatchday}`}
+            </p>
+          )}
+          <!-- Accesos rápidos -->
+          <div class="flex gap-2 mt-2 flex-wrap">
+            <a href={`/clasificacion/${code}/goleadores`}
+              class="text-[10px] font-semibold text-gray-500 hover:text-green-400 transition
+                bg-[#0d1526] border border-[#1a2540] hover:border-green-400/30 px-2 py-1 rounded-lg">
+              ⚽ Goleadores
+            </a>
+            {season?.currentMatchday && (
+              <a href={`/clasificacion/${code}/jornada/${season.currentMatchday}`}
+                class="text-[10px] font-semibold text-gray-500 hover:text-green-400 transition
+                  bg-[#0d1526] border border-[#1a2540] hover:border-green-400/30 px-2 py-1 rounded-lg">
+                📅 J{season.currentMatchday}
+              </a>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <!-- Selector de grupos (Champions) -->
+      {hasMultipleTables && (
+        <div class="flex gap-2 flex-wrap mb-4">
+          {processedTables.map((t, i) => (
+            <a href={`#tabla-${i}`}
+              class="px-3 py-1 bg-[#111827] border border-[#1f2937] rounded-lg text-xs
+                text-gray-400 hover:text-white hover:border-[#374151] transition">
+              {t.group ?? t.stage ?? `Tabla ${i+1}`}
+            </a>
+          ))}
+        </div>
+      )}
+
+      <!-- Tablas de clasificación -->
+      {processedTables.map((t, idx) => (
+        <div id={`tabla-${idx}`} class="mb-6">
+
+          {hasMultipleTables && (
+            <h2 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 px-1">
+              {t.group ?? t.stage ?? `Grupo ${idx+1}`}
+            </h2>
+          )}
+
+          <div class="bg-[#111827] border border-[#1f2937] rounded-xl overflow-hidden">
+
+            <!-- Cabecera columnas -->
+            <div class="grid text-[10px] text-gray-600 uppercase tracking-widest font-bold
+              px-3 py-2 border-b border-[#1f2937]"
+              style="grid-template-columns: 2rem 1fr repeat(8, 2rem)">
+              <span class="text-center">#</span>
+              <span>Equipo</span>
+              <span class="text-center" title="Partidos jugados">PJ</span>
+              <span class="text-center" title="Ganados">G</span>
+              <span class="text-center" title="Empatados">E</span>
+              <span class="text-center" title="Perdidos">P</span>
+              <span class="text-center" title="Goles a favor">GF</span>
+              <span class="text-center" title="Goles en contra">GC</span>
+              <span class="text-center" title="Diferencia">DG</span>
+              <span class="text-center font-black text-gray-400" title="Puntos">Pts</span>
+            </div>
+
+            <!-- Filas — sin ninguna comparación con < en el template -->
+            {t.processedRows.map(row => (
+              <div
+                class={`grid items-center px-3 py-2.5 border-b border-[#0f1520] last:border-0
+                  hover:bg-white/[0.02] transition group ${row.zoneBorder}`}
+                style="grid-template-columns: 2rem 1fr repeat(8, 2rem)">
+
+                <span class="text-center text-xs font-bold text-gray-500">{row.position}</span>
+
+                <!-- Equipo + forma -->
+                <div class="flex items-center gap-2 min-w-0">
+                  {row.team?.crest && (
+                    <img src={row.team.crest} alt="" class="w-5 h-5 object-contain shrink-0"
+                      onerror="this.style.display='none'"/>
+                  )}
+                  <a href={`/equipo/${row.team?.id}`}
+                    class="text-sm text-gray-200 truncate group-hover:text-white transition hover:text-green-400">
+                    {row.team?.shortName ?? row.team?.name}
+                  </a>
+                  <div class="hidden sm:flex gap-0.5 ml-1">
+                    {row.formBubbles.map(fb => (
+                      <span class={`w-3.5 h-3.5 rounded-sm text-[8px] font-black text-white
+                        flex items-center justify-center ${fb.color}`}>
+                        {fb.r}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <span class="text-center text-xs text-gray-400">{row.playedGames}</span>
+                <span class="text-center text-xs text-green-400">{row.won}</span>
+                <span class="text-center text-xs text-gray-500">{row.draw}</span>
+                <span class="text-center text-xs text-red-400">{row.lost}</span>
+                <span class="text-center text-xs text-gray-400">{row.goalsFor}</span>
+                <span class="text-center text-xs text-gray-400">{row.goalsAgainst}</span>
+                <span class="text-center text-xs text-gray-400">{row.goalDiffStr}</span>
+                <span class="text-center text-sm font-black text-white">{row.points}</span>
+              </div>
+            ))}
+          </div>
+
+          <!-- Leyenda zonas -->
+          <div class="flex flex-wrap gap-3 mt-2 px-1">
+            <div class="flex items-center gap-1.5 text-xs text-gray-600">
+              <span class="w-2 h-2 rounded-sm bg-blue-500/50"></span> Champions
+            </div>
+            <div class="flex items-center gap-1.5 text-xs text-gray-600">
+              <span class="w-2 h-2 rounded-sm bg-orange-500/50"></span> Europa
+            </div>
+            <div class="flex items-center gap-1.5 text-xs text-gray-600">
+              <span class="w-2 h-2 rounded-sm bg-red-500/50"></span> Descenso
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- ════ COLUMNA LATERAL: Próximos partidos ════ -->
+    <div>
+      <h2 class="text-sm font-bold text-gray-400 uppercase tracking-widest mb-3">
+        Próximos partidos
+      </h2>
+
+      {nextProcessed.length === 0 ? (
+        <p class="text-gray-600 text-sm">No hay próximos partidos</p>
+      ) : (
+        <div class="space-y-2">
+          {nextProcessed.map(m => (
+            <div class="bg-[#111827] border border-[#1f2937] rounded-xl px-3 py-3 hover:border-[#374151] transition">
+              <p class="text-[10px] text-gray-600 mb-2">
+                {m.dateLabel}
+                {m.matchday && <span> · J{m.matchday}</span>}
+              </p>
+              <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                  {m.homeTeam?.crest && (
+                    <img src={m.homeTeam.crest} alt="" class="w-4 h-4 object-contain shrink-0"
+                      onerror="this.style.display='none'"/>
+                  )}
+                  <span class="text-xs text-gray-300 truncate">
+                    {m.homeTeam?.shortName ?? m.homeTeam?.name}
+                  </span>
+                </div>
+                <span class="text-xs text-gray-600 shrink-0 font-bold">vs</span>
+                <div class="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
+                  <span class="text-xs text-gray-300 truncate text-right">
+                    {m.awayTeam?.shortName ?? m.awayTeam?.name}
+                  </span>
+                  {m.awayTeam?.crest && (
+                    <img src={m.awayTeam.crest} alt="" class="w-4 h-4 object-contain shrink-0"
+                      onerror="this.style.display='none'"/>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+
+  </div>
+)}
+
+</Layout>

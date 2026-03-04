@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pitch-900: #0a0f1a;
+  --color-pitch-800: #111827;
+  --color-pitch-700: #1f2937;
+  --color-pitch-600: #374151;
+  --color-live:        #ef4444;
+  --color-goal:        #22c55e;
+  --color-card-yellow: #eab308;
+  --color-card-red:    #ef4444;
+}
+
+/* Scrollbar global — mínimo y discreto */
+* { scrollbar-width: thin; scrollbar-color: #1f2937 transparent; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 2px; }
+
+/* Ocultar scrollbar en carruseles horizontales */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Animación de punto en vivo */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+.live-dot { animation: live-pulse 1.2s ease-in-out infinite; }

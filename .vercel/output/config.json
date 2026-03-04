@@ -1,0 +1,67 @@
+{
+	"version": 3,
+	"routes": [
+		{
+			"handle": "filesystem"
+		},
+		{
+			"src": "^/_astro/(.*)$",
+			"headers": {
+				"cache-control": "public, max-age=31536000, immutable"
+			},
+			"continue": true
+		},
+		{
+			"src": "^/_server-islands/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/_image/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/api/fixture/([^/]+?)/detail/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/api/fixture/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/api/match/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/clasificacion/([^/]+?)/goleadores/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/clasificacion/([^/]+?)/jornada/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/clasificacion/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/debug/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/equipo/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/explorador/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/jugador/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/$",
+			"dest": "_render"
+		}
+	]
+}

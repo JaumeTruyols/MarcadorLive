@@ -1,0 +1,231 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?:       string;
+  description?: string;
+  image?:       string;   // URL absoluta para og:image
+  noIndex?:     boolean;  // true en páginas de dev como /explorador
+}
+
+const {
+  title       = 'Marcador — Resultados de fútbol en tiempo real',
+  description = 'Resultados, clasificaciones, goleadores y estadísticas de LaLiga, Champions League, Premier League y más. Actualizado al minuto.',
+  image       = '/og-default.png',
+  noIndex     = false,
+} = Astro.props;
+
+const p           = Astro.url.pathname;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site ?? 'https://marcador.live');
+
+// Título con sufijo para SEO — excepto la home
+const pageTitle = p === '/'
+  ? title
+  : title.includes('Marcador')
+    ? title
+    : `${title} · Marcador`;
+
+const SECTIONS = [
+  {
+    label: '⭐ Destacadas',
+    links: [
+      { href: '/clasificacion/CL',  label: 'Champions',    icon: '🏆' },
+      { href: '/clasificacion/EL',  label: 'Europa Lg',    icon: '🥈' },
+      { href: '/clasificacion/PD',  label: 'LaLiga',       icon: '🇪🇸' },
+      { href: '/clasificacion/PL',  label: 'Premier',      icon: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+      { href: '/clasificacion/SA',  label: 'Serie A',      icon: '🇮🇹' },
+      { href: '/clasificacion/BL1', label: 'Bundesliga',   icon: '🇩🇪' },
+      { href: '/clasificacion/FL1', label: 'Ligue 1',      icon: '🇫🇷' },
+    ]
+  },
+  {
+    label: '🌍 Más ligas',
+    links: [
+      { href: '/clasificacion/PPL', label: 'Portugal',     icon: '🇵🇹' },
+      { href: '/clasificacion/DED', label: 'Eredivisie',   icon: '🇳🇱' },
+      { href: '/clasificacion/ELC', label: 'Championship', icon: '🏴󠁧󠁢󠁥󠁮󠁧󠁿' },
+      { href: '/clasificacion/BSA', label: 'Brasil',       icon: '🇧🇷' },
+      { href: '/clasificacion/CLI', label: 'Libertadores', icon: '🌎' },
+      { href: '/clasificacion/WC',  label: 'Mundial',      icon: '🌍' },
+      { href: '/clasificacion/EC',  label: 'Eurocopa',     icon: '🇪🇺' },
+    ]
+  },
+];
+
+function isActive(href: string) {
+  if (href === '/') return p === '/';
+  return p === href || p.startsWith(href + '/') || p.startsWith(href);
+}
+---
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <!-- ── SEO básico ── -->
+  <title>{pageTitle}</title>
+  <meta name="description"        content={description}/>
+  <link rel="canonical"           href={canonicalURL}/>
+  {noIndex && <meta name="robots" content="noindex, nofollow"/>}
+
+  <!-- ── Open Graph (WhatsApp, Facebook, LinkedIn) ── -->
+  <meta property="og:type"        content="website"/>
+  <meta property="og:url"         content={canonicalURL}/>
+  <meta property="og:title"       content={pageTitle}/>
+  <meta property="og:description" content={description}/>
+  <meta property="og:image"       content={image}/>
+  <meta property="og:locale"      content="es_ES"/>
+  <meta property="og:site_name"   content="Marcador"/>
+
+  <!-- ── Twitter / X Card ── -->
+  <meta name="twitter:card"        content="summary_large_image"/>
+  <meta name="twitter:title"       content={pageTitle}/>
+  <meta name="twitter:description" content={description}/>
+  <meta name="twitter:image"       content={image}/>
+
+  <!-- ── PWA / App ── -->
+  <meta name="theme-color"         content="#0a0f1a"/>
+  <meta name="application-name"    content="Marcador"/>
+  <meta name="apple-mobile-web-app-title"   content="Marcador"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="mobile-web-app-capable"       content="yes"/>
+
+  <!-- ── Favicon (emojis como SVG — funciona en todos los navegadores modernos) ── -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>"/>
+</head>
+
+<body class="bg-[#0a0f1a] text-white min-h-screen font-sans antialiased">
+
+  <!-- ══════════════ HEADER ══════════════ -->
+  <header class="h-14 bg-[#0d1526]/95 border-b border-[#1a2540] sticky top-0 z-50
+    backdrop-blur-md flex items-center px-4 gap-3">
+
+    <button id="sidebar-toggle" aria-label="Abrir menú"
+      class="lg:hidden p-2 rounded-lg text-gray-500 hover:text-white hover:bg-white/10 transition shrink-0">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="3" y1="6"  x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+
+    <a href="/" class="flex items-center gap-2 font-black text-lg tracking-tight shrink-0">
+      <span class="text-xl">⚽</span>
+      <span>Marcador<span class="text-green-400">.live</span></span>
+    </a>
+
+    <div class="flex-1"></div>
+
+    <a href="/explorador"
+      class="hidden sm:flex items-center gap-1.5 text-[11px] text-gray-600
+        hover:text-yellow-400 transition border border-[#1a2540]
+        hover:border-yellow-500/30 px-2.5 py-1.5 rounded-lg">
+      🔬 <span>Dev</span>
+    </a>
+  </header>
+
+  <!-- ══════════════ LAYOUT ══════════════ -->
+  <div class="flex">
+
+    <aside id="sidebar"
+      class="fixed top-14 left-0 h-[calc(100vh-3.5rem)] w-56 shrink-0
+        bg-[#0d1526] border-r border-[#1a2540] overflow-y-auto z-40
+        transition-transform duration-300 ease-in-out
+        -translate-x-full lg:translate-x-0">
+
+      <nav class="py-4 flex flex-col gap-0.5" aria-label="Ligas y competiciones">
+
+        <a href="/"
+          class={`flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm font-semibold transition-all
+            ${p === '/'
+              ? 'text-green-400 bg-green-400/10'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'}`}>
+          <span class="text-base">⚽</span>
+          <span>Partidos hoy</span>
+          {p === '/' && <span class="ml-auto w-1.5 h-1.5 rounded-full bg-green-400"></span>}
+        </a>
+
+        {SECTIONS.map(section => (
+          <div class="mt-3">
+            <p class="px-4 pb-1 text-[10px] font-bold text-gray-700 uppercase tracking-widest">
+              {section.label}
+            </p>
+            {section.links.map(link => {
+              const active = isActive(link.href);
+              return (
+                <a href={link.href}
+                  class={`flex items-center gap-3 px-4 py-2 mx-2 rounded-lg text-sm transition-all
+                    ${active
+                      ? 'text-green-400 bg-green-400/10 font-semibold'
+                      : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'}`}>
+                  <span class="text-base leading-none w-5 text-center">{link.icon}</span>
+                  <span class="flex-1">{link.label}</span>
+                  {active && <span class="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0"></span>}
+                </a>
+              );
+            })}
+          </div>
+        ))}
+
+        <div class="mt-6 mx-2 lg:hidden">
+          <a href="/explorador"
+            class="flex items-center gap-2 px-4 py-2 rounded-lg text-xs text-gray-600
+              hover:text-yellow-400 hover:bg-white/5 transition">
+            <span>🔬</span> Dev Explorer
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <div id="sidebar-overlay"
+      class="fixed inset-0 bg-black/60 z-30 hidden lg:hidden"></div>
+
+    <main class="flex-1 lg:ml-56 min-h-[calc(100vh-3.5rem)]">
+      <div class="max-w-5xl mx-auto px-4 py-6">
+        <slot />
+      </div>
+    </main>
+  </div>
+
+  <footer class="lg:ml-56 border-t border-[#1a2540] py-8 px-4">
+    <div class="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <span class="text-gray-700 text-xs">
+        © {new Date().getFullYear()} Marcador · Datos proporcionados por
+        <a href="https://www.football-data.org" target="_blank" rel="noopener noreferrer"
+          class="hover:text-gray-500 transition underline underline-offset-2">
+          football-data.org
+        </a>
+      </span>
+      <span class="text-gray-800 text-xs">
+        Construido con Astro · React · Tailwind · Vercel
+      </span>
+    </div>
+  </footer>
+
+  <script>
+    const btn     = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+
+    function openSidebar() {
+      sidebar?.classList.remove('-translate-x-full');
+      overlay?.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeSidebar() {
+      sidebar?.classList.add('-translate-x-full');
+      overlay?.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    btn?.addEventListener('click', () =>
+      sidebar?.classList.contains('-translate-x-full') ? openSidebar() : closeSidebar()
+    );
+    overlay?.addEventListener('click', closeSidebar);
+    document.querySelectorAll('#sidebar a').forEach(a =>
+      a.addEventListener('click', closeSidebar)
+    );
+  </script>
+</body>
+</html>

@@ -1,0 +1,104 @@
+---
+const KEY  = import.meta.env.RAPIDAPI_KEY;
+const BASE = 'https://free-api-live-football-data.p.rapidapi.com';
+const hdrs = { 'X-RapidAPI-Key': KEY, 'X-RapidAPI-Host': 'free-api-live-football-data.p.rapidapi.com' };
+const w    = ms => new Promise(r => setTimeout(r, ms));
+
+// IDs de temporada que vemos en los partidos
+const sampleSeasonIds = [913550, 894202, 893033, 890035, 891311];
+
+// Endpoints que podrían devolver nombre por season ID
+const endpoints = [
+  id => `/football-get-standings?leagueid=${id}`,
+  id => `/football-get-league?leagueid=${id}`,
+  id => `/football-get-league-season?leagueid=${id}`,
+];
+
+const results = [];
+for (const id of sampleSeasonIds) {
+  for (const ep of endpoints) {
+    const path = ep(id);
+    try {
+      const r = await fetch(`${BASE}${path}`, { headers: hdrs });
+      const j = await r.json();
+      const ok = j?.status === 'success';
+      const res = j?.response ?? {};
+      const keys = Object.keys(res).join(', ');
+      const name =
+        res?.name ?? res?.leagueName ?? res?.league?.name ??
+        (Array.isArray(res?.table) ? res.table[0]?.leagueName : null) ??
+        (Array.isArray(res?.matches) ? res.matches[0]?.leagueName : null) ?? null;
+      results.push({ id, path: path.split('?')[0], ok, name, keys });
+    } catch(e) {
+      results.push({ id, path: path.split('?')[0], ok: false, name: null, keys: e.message });
+    }
+    await w(300);
+  }
+}
+
+// Búsqueda por nombre para encontrar IDs de ligas domésticas
+const searchTerms = ['laliga', 'premier league', 'bundesliga', 'serie a', 'ligue 1'];
+const searchResults = [];
+for (const term of searchTerms) {
+  try {
+    const r = await fetch(`${BASE}/football-search?term=${encodeURIComponent(term)}`, { headers: hdrs });
+    const j = await r.json();
+    const all = j?.response?.suggestions ?? j?.response ?? [];
+    const items = Array.isArray(all) ? all : [];
+    searchResults.push({
+      term,
+      hits: items.slice(0, 4).map(i => `[${i.type}] id:${i.id ?? i.leagueId} — ${i.name ?? i.title ?? i.leagueName ?? '?'}`),
+    });
+  } catch(e) {
+    searchResults.push({ term, hits: [e.message] });
+  }
+  await w(300);
+}
+---
+<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"/><title>Debug</title>
+<style>
+  body{background:#0a0f1a;color:#e5e7eb;font-family:monospace;padding:2rem;font-size:.82rem}
+  h1,h2{color:#22c55e}
+  table{border-collapse:collapse;width:100%;margin-top:.5rem;margin-bottom:2rem}
+  th,td{padding:.4rem .8rem;border:1px solid #374151;text-align:left}
+  th{background:#1f2937;color:#9ca3af}
+  .ok{color:#22c55e}.fail{color:#ef4444}.warn{color:#f59e0b}
+</style>
+</head>
+<body>
+  <h1>🔍 Debug — Nombres de ligas</h1>
+
+  <h2>1. Endpoints por season ID</h2>
+  <table>
+    <thead><tr><th>Season ID</th><th>Endpoint</th><th>OK</th><th>Nombre</th><th>Keys en response</th></tr></thead>
+    <tbody>
+      {results.map(r => (
+        <tr>
+          <td>{r.id}</td>
+          <td>{r.path}</td>
+          <td class={r.ok ? 'ok' : 'fail'}>{r.ok ? '✅' : '❌'}</td>
+          <td class={r.name ? 'ok' : 'warn'}>{r.name ?? '(no encontrado)'}</td>
+          <td style="color:#6b7280">{r.keys}</td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+
+  <h2>2. Búsqueda por nombre de liga</h2>
+  <table>
+    <thead><tr><th>Búsqueda</th><th>Resultados</th></tr></thead>
+    <tbody>
+      {searchResults.map(r => (
+        <tr>
+          <td>{r.term}</td>
+          <td>
+            {r.hits.map(h => <div class="ok">{h}</div>)}
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</body>
+</html>
