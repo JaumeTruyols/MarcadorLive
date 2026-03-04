@@ -1,29 +1,26 @@
-// lib/cache.js — Caché en memoria + archivo (solo local)
-//
-// EN LOCAL:   memoria + .cache/futbol.json
-// EN VERCEL:  solo memoria (sin disco)
-//
-// Sin top-level await ni import() dinámico para máxima compatibilidad.
-
-import fs   from 'node:fs';
-import path from 'node:path';
+// lib/cache.js — Solo memoria en Vercel, memoria+archivo en local
+// Sin imports de node:fs a nivel de módulo (crash en Vercel serverless)
 
 const IS_VERCEL = !!process.env.VERCEL;
-const USE_FILE  = !IS_VERCEL;
-const CACHE_DIR = path.join(process.cwd(), '.cache');
-const CACHE_FILE= path.join(CACHE_DIR, 'futbol.json');
 
-// ── Memoria ──────────────────────────────────────────────────────────────────
+// ── Memoria (globalThis persiste entre requests en la misma instancia) ───────
 if (!globalThis.__futbolCache) globalThis.__futbolCache = new Map();
 const mem = globalThis.__futbolCache;
 
-// ── Inicializar archivo (solo local, una sola vez) ───────────────────────────
-if (USE_FILE && !globalThis.__futbolCacheLoaded) {
+// ── Archivo local (fs se importa solo si estamos en local) ───────────────────
+async function initFileCache() {
+  if (IS_VERCEL || globalThis.__futbolCacheLoaded) return;
   globalThis.__futbolCacheLoaded = true;
   try {
-    if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
-    if (fs.existsSync(CACHE_FILE)) {
-      const entries = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf-8'));
+    const { default: fs }   = await import('node:fs');
+    const { default: path } = await import('node:path');
+    const dir  = path.join(process.cwd(), '.cache');
+    const file = path.join(dir, 'futbol.json');
+    globalThis.__futbolCacheFile = file;
+    globalThis.__futbolCacheFs   = fs;
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    if (fs.existsSync(file)) {
+      const entries = JSON.parse(fs.readFileSync(file, 'utf-8'));
       let n = 0;
       for (const [k, v] of Object.entries(entries)) {
         if (Date.now() < v.expiresAt) { mem.set(k, v); n++; }
@@ -31,19 +28,21 @@ if (USE_FILE && !globalThis.__futbolCacheLoaded) {
       if (n) console.log(`[CACHE] Archivo: ${n} entradas cargadas`);
     }
   } catch(e) {
-    console.warn('[CACHE] No se pudo leer el archivo:', e.message);
+    console.warn('[CACHE] Sin caché de archivo:', e.message);
   }
 }
 
 function persistFile() {
-  if (!USE_FILE) return;
+  if (IS_VERCEL || !globalThis.__futbolCacheFs) return;
   try {
     const obj = {};
     for (const [k, v] of mem.entries()) obj[k] = v;
-    fs.writeFileSync(CACHE_FILE, JSON.stringify(obj), 'utf-8');
-  } catch(e) {
-    console.warn('[CACHE] Error escribiendo en disco:', e.message);
-  }
+    globalThis.__futbolCacheFs.writeFileSync(
+      globalThis.__futbolCacheFile,
+      JSON.stringify(obj),
+      'utf-8'
+    );
+  } catch {}
 }
 
 // ── API pública ──────────────────────────────────────────────────────────────
@@ -59,10 +58,13 @@ export function cacheGet(key) {
 export function cacheSet(key, data, ttlSeconds = 60) {
   const entry = { data, expiresAt: Date.now() + ttlSeconds * 1000 };
   mem.set(key, entry);
-  if (USE_FILE && ttlSeconds >= 60) persistFile();
+  if (!IS_VERCEL && ttlSeconds >= 60) persistFile();
 }
 
 export async function cached(key, fetchFn, ttlSeconds = 60) {
+  // Inicializar archivo la primera vez (solo en local, no bloquea en Vercel)
+  await initFileCache();
+
   const hit = cacheGet(key);
   if (hit !== null) {
     console.log(`[CACHE] HIT  ${key}`);
