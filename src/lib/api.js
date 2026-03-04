@@ -5,9 +5,10 @@
 export const BASE = 'https://api.football-data.org/v4';
 
 export function getHeaders() {
-  // process.env funciona tanto en local como en Vercel serverless
-  const key = process.env.FOOTBALL_API_KEY;
-  if (!key) console.warn('[API] FOOTBALL_API_KEY no definida en las variables de entorno');
+  // import.meta.env → Astro/Vite lo carga del .env en local
+  // process.env     → Vercel lo inyecta en serverless
+  const key = import.meta.env.FOOTBALL_API_KEY ?? process.env.FOOTBALL_API_KEY;
+  if (!key) console.warn('[API] FOOTBALL_API_KEY no definida');
   return { 'X-Auth-Token': key ?? '' };
 }
 

@@ -1,6 +1,6 @@
-import { e as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_BVI5uupt.mjs';
+import { f as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead } from '../chunks/astro/server_Cq0U3tm5.mjs';
 import 'piccolore';
-import { h as getDateOffset, $ as $$Layout, i as getMatchesByDate } from '../chunks/endpoints_C8zJpIpY.mjs';
+import { h as getDateOffset, $ as $$Layout, i as getMatchesByDate } from '../chunks/endpoints_DdBpewqL.mjs';
 import { jsxs, jsx } from 'react/jsx-runtime';
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { M as MatchCard } from '../chunks/MatchCard_8_PTCg03.mjs';

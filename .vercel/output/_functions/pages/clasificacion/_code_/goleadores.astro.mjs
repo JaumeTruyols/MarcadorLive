@@ -1,9 +1,9 @@
-import { e as createComponent, k as renderComponent, r as renderTemplate, h as createAstro, m as maybeRenderHead, g as addAttribute } from '../../../chunks/astro/server_BVI5uupt.mjs';
+import { e as createAstro, f as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead, h as addAttribute } from '../../../chunks/astro/server_Cq0U3tm5.mjs';
 import 'piccolore';
-import { g as getScorers, a as getStandings, $ as $$Layout } from '../../../chunks/endpoints_C8zJpIpY.mjs';
+import { g as getScorers, a as getStandings, $ as $$Layout } from '../../../chunks/endpoints_DdBpewqL.mjs';
 export { renderers } from '../../../renderers.mjs';
 
-const $$Astro = createAstro();
+const $$Astro = createAstro("https://marcador.live");
 const $$Goleadores = createComponent(async ($$result, $$props, $$slots) => {
   const Astro2 = $$result.createAstro($$Astro, $$props, $$slots);
   Astro2.self = $$Goleadores;

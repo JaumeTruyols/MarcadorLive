@@ -1,9 +1,9 @@
-import { e as createComponent, l as renderHead, k as renderComponent, n as Fragment, r as renderTemplate, g as addAttribute, o as renderScript, h as createAstro } from '../chunks/astro/server_BVI5uupt.mjs';
+import { e as createAstro, f as createComponent, l as renderHead, k as renderComponent, n as Fragment, r as renderTemplate, h as addAttribute, o as renderScript } from '../chunks/astro/server_Cq0U3tm5.mjs';
 import 'piccolore';
 /* empty css                                      */
 export { renderers } from '../renderers.mjs';
 
-const $$Astro = createAstro();
+const $$Astro = createAstro("https://marcador.live");
 const $$Explorador = createComponent(async ($$result, $$props, $$slots) => {
   const Astro2 = $$result.createAstro($$Astro, $$props, $$slots);
   Astro2.self = $$Explorador;
